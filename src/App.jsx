@@ -1,5 +1,23 @@
 import { useState, useEffect } from "react";
+import { initializeApp } from "firebase/app";
+import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc } from "firebase/firestore";
 
+// ── Firebase config ──────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyAPkXpRYLUvQ74GpYf2oXOMJ5U7G1b082w",
+  authDomain: "macara-sudamerica.firebaseapp.com",
+  projectId: "macara-sudamerica",
+  storageBucket: "macara-sudamerica.firebasestorage.app",
+  messagingSenderId: "609797711996",
+  appId: "1:609797711996:web:00cc9e7ce093b5e29001f9",
+  measurementId: "G-L7SJK2P96P"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp);
+const COLLECTION = "predicciones";
+
+// ── Datos equipos ────────────────────────────────────────────────
 const BOMBO1 = [
   { name: "River Plate", country: "ARG", flag: "🇦🇷" },
   { name: "Racing Club", country: "ARG", flag: "🇦🇷" },
@@ -37,218 +55,114 @@ const BOMBO4 = [
   { name: "Carabobo FC", country: "VEN", flag: "🇻🇪", pending: true },
 ];
 
+// ── CSS ──────────────────────────────────────────────────────────
 const CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  html, body, #root {
-    width: 100%;
-    min-height: 100vh;
-  }
+  html, body, #root { width: 100%; min-height: 100vh; }
 
   .app-wrapper {
-    width: 100%;
-    min-height: 100vh;
+    width: 100%; min-height: 100vh;
     background: linear-gradient(155deg,#081410 0%,#0c1e16 45%,#091510 100%);
     font-family: 'Trebuchet MS', Tahoma, sans-serif;
-    color: #fff;
-    padding-bottom: 60px;
+    color: #fff; padding-bottom: 60px;
   }
-
   .header {
     background: linear-gradient(90deg,#143520,#0e5228,#143520);
     border-bottom: 3px solid #f0cc1a;
-    padding: 16px 20px;
-    text-align: center;
-    width: 100%;
+    padding: 16px 20px; text-align: center; width: 100%;
   }
-
   .page-content {
-    width: 100%;
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 28px 24px;
+    width: 100%; max-width: 1100px;
+    margin: 0 auto; padding: 28px 24px;
   }
-
-  /* Teams grid: auto-fill columns, min 160px each */
   .teams-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 10px;
   }
-
   .team-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    border-radius: 10px;
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; border-radius: 10px;
     border: 2px solid rgba(255,255,255,0.1);
     background: rgba(255,255,255,0.05);
-    color: #e8e8e8;
-    font-family: inherit;
-    font-size: 13px;
-    cursor: pointer;
-    transition: all 0.18s;
-    text-align: left;
-    position: relative;
-    width: 100%;
+    color: #e8e8e8; font-family: inherit; font-size: 13px;
+    cursor: pointer; transition: all 0.18s;
+    text-align: left; position: relative; width: 100%;
   }
   .team-btn.selected {
     background: linear-gradient(135deg,#b8960a,#f0cc1a);
-    border-color: #f0cc1a;
-    color: #111;
-    font-weight: 800;
-    transform: scale(1.03);
+    border-color: #f0cc1a; color: #111;
+    font-weight: 800; transform: scale(1.03);
   }
   .team-btn .flag { font-size: 22px; flex-shrink: 0; }
   .team-btn .team-name { line-height: 1.25; }
   .team-btn .team-country { font-size: 10px; opacity: 0.65; }
   .team-btn .pending-badge {
-    position: absolute; top: 4px; right: 5px;
-    font-size: 9px;
-    background: rgba(255,140,0,0.2);
-    border: 1px solid rgba(255,140,0,0.45);
+    position: absolute; top: 4px; right: 5px; font-size: 9px;
+    background: rgba(255,140,0,0.2); border: 1px solid rgba(255,140,0,0.45);
     border-radius: 4px; padding: 1px 4px; color: #ffaa44;
   }
-
-  /* Progress pills */
-  .progress-pills {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 26px;
-  }
+  .progress-pills { display: flex; gap: 8px; margin-bottom: 26px; }
   .pill {
-    flex: 1; padding: 8px 6px; text-align: center;
-    border-radius: 8px; font-size: 13px;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: rgba(255,255,255,0.04);
-    color: #555;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: 1; padding: 8px 6px; text-align: center; border-radius: 8px;
+    font-size: 13px; border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.04); color: #555;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .pill.done {
-    background: rgba(240,204,26,0.12);
-    border-color: #f0cc1a;
-    color: #f0cc1a;
-  }
-
-  /* Home card */
+  .pill.done { background: rgba(240,204,26,0.12); border-color: #f0cc1a; color: #f0cc1a; }
   .home-card {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 16px;
-    padding: 28px;
-    max-width: 420px;
-    margin: 0 auto;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px; padding: 28px; max-width: 420px; margin: 0 auto;
   }
-
-  /* Result card */
   .result-card {
-    background: rgba(255,255,255,0.04);
-    border: 2px solid rgba(240,204,26,0.3);
-    border-radius: 16px;
-    padding: 28px;
-    max-width: 520px;
-    margin: 0 auto 28px;
-    text-align: left;
+    background: rgba(255,255,255,0.04); border: 2px solid rgba(240,204,26,0.3);
+    border-radius: 16px; padding: 28px; max-width: 520px;
+    margin: 0 auto 28px; text-align: left;
   }
-
-  /* Rankings row */
   .rank-row {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.09);
-    border-radius: 12px;
-    padding: 14px 16px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 12px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   }
-  .rank-teams {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    flex: 1;
-  }
-  .rank-badge {
-    border-radius: 6px;
-    padding: 5px 12px;
-    font-size: 13px;
-  }
-
-  /* Bombo header */
-  .bombo-header {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-  }
-  .bombo-tag {
-    border-radius: 8px;
-    padding: 5px 16px;
-    font-weight: 900;
-    font-size: 13px;
-    letter-spacing: 2px;
-    color: #fff;
-  }
-
-  /* Nav */
+  .rank-teams { display: flex; gap: 8px; flex-wrap: wrap; flex: 1; }
+  .rank-badge { border-radius: 6px; padding: 5px 12px; font-size: 13px; }
+  .bombo-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .bombo-tag { border-radius: 8px; padding: 5px 16px; font-weight: 900; font-size: 13px; letter-spacing: 2px; color: #fff; }
   .nav-btn {
-    background: transparent;
-    border: 1px solid rgba(255,255,255,0.2);
-    color: #bbb;
-    border-radius: 8px;
-    padding: 5px 14px;
-    font-size: 12px;
-    cursor: pointer;
-    font-weight: 400;
-    font-family: inherit;
+    background: transparent; border: 1px solid rgba(255,255,255,0.2);
+    color: #bbb; border-radius: 8px; padding: 5px 14px;
+    font-size: 12px; cursor: pointer; font-weight: 400; font-family: inherit;
   }
-  .nav-btn.active {
-    background: rgba(240,204,26,0.18);
-    border-color: #f0cc1a;
-    color: #f0cc1a;
-    font-weight: 700;
-  }
-
-  /* Name input */
+  .nav-btn.active { background: rgba(240,204,26,0.18); border-color: #f0cc1a; color: #f0cc1a; font-weight: 700; }
   .name-input {
-    width: 100%;
-    padding: 12px 14px;
-    border-radius: 10px;
+    width: 100%; padding: 12px 14px; border-radius: 10px;
     border: 2px solid rgba(240,204,26,0.35);
-    background: rgba(255,255,255,0.07);
-    color: #fff;
-    font-size: 16px;
-    outline: none;
-    font-family: inherit;
+    background: rgba(255,255,255,0.07); color: #fff;
+    font-size: 16px; outline: none; font-family: inherit;
   }
   .name-input.error { border-color: #ff6b6b; }
-
-  /* CTA button */
   .cta-btn {
     width: 100%; margin-top: 16px; padding: 14px;
     background: linear-gradient(135deg,#b8960a,#f0cc1a);
-    border: none; border-radius: 10px;
-    font-size: 16px; font-weight: 900; cursor: pointer;
-    color: #111; letter-spacing: 1px;
-    font-family: inherit;
+    border: none; border-radius: 10px; font-size: 16px;
+    font-weight: 900; cursor: pointer; color: #111;
+    letter-spacing: 1px; font-family: inherit;
   }
   .submit-btn {
-    padding: 16px 52px;
-    border: none; border-radius: 12px;
-    font-size: 17px; font-weight: 900;
-    letter-spacing: 1px; font-family: inherit;
+    padding: 16px 52px; border: none; border-radius: 12px;
+    font-size: 17px; font-weight: 900; letter-spacing: 1px; font-family: inherit;
   }
   .action-btn {
     padding: 12px 26px; border: none; border-radius: 10px;
-    font-size: 14px; font-weight: 700; cursor: pointer;
-    color: #fff; font-family: inherit;
+    font-size: 14px; font-weight: 700; cursor: pointer; color: #fff; font-family: inherit;
   }
+  .spinner {
+    width: 36px; height: 36px; border: 4px solid rgba(255,255,255,0.1);
+    border-top-color: #f0cc1a; border-radius: 50%;
+    animation: spin 0.8s linear infinite; margin: 60px auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-  /* Responsive tweaks */
   @media (max-width: 600px) {
     .page-content { padding: 20px 14px; }
     .teams-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
@@ -256,13 +170,13 @@ const CSS = `
     .result-card { padding: 18px; }
     .rank-row { flex-direction: column; align-items: flex-start; }
   }
-
   @media (min-width: 900px) {
     .teams-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
     .home-card { padding: 36px; }
   }
 `;
 
+// ── Componente principal ─────────────────────────────────────────
 export default function App() {
   const [step, setStep] = useState("home");
   const [userName, setUserName] = useState("");
@@ -270,32 +184,58 @@ export default function App() {
   const [selected, setSelected] = useState({ b1: null, b2: null, b4: null });
   const [predictions, setPredictions] = useState([]);
   const [myPrediction, setMyPrediction] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [dbError, setDbError] = useState("");
 
   useEffect(() => { loadPredictions(); }, []);
 
   async function loadPredictions() {
+    setLoading(true);
+    setDbError("");
     try {
-      const result = await window.storage.get("macara_predictions_v2", true);
-      if (result) setPredictions(JSON.parse(result.value));
-    } catch {}
+      const q = query(collection(db, COLLECTION), orderBy("date", "desc"));
+      const snap = await getDocs(q);
+      const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setPredictions(data);
+    } catch (e) {
+      setDbError("No se pudo conectar a la base de datos. Revisa las reglas de Firestore.");
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function savePrediction() {
+    setSaving(true);
+    setDbError("");
     const entry = {
       name: userName.trim(),
-      b1: selected.b1, b2: selected.b2, b4: selected.b4,
-      date: new Date().toLocaleDateString("es-EC"),
+      b1: selected.b1,
+      b2: selected.b2,
+      b4: selected.b4,
+      date: new Date().toISOString(),
+      dateLabel: new Date().toLocaleDateString("es-EC"),
     };
-    const updated = [
-      ...predictions.filter(p => p.name.toLowerCase() !== entry.name.toLowerCase()),
-      entry,
-    ];
+
     try {
-      await window.storage.set("macara_predictions_v2", JSON.stringify(updated), true);
-      setPredictions(updated);
-      setMyPrediction(entry);
+      // Si ya existe ese nombre, borra el anterior primero
+      const existing = predictions.find(p => p.name.toLowerCase() === entry.name.toLowerCase());
+      if (existing?.id) {
+        await deleteDoc(doc(db, COLLECTION, existing.id));
+      }
+
+      const docRef = await addDoc(collection(db, COLLECTION), entry);
+      const newEntry = { id: docRef.id, ...entry };
+      setPredictions(prev => [newEntry, ...prev.filter(p => p.name.toLowerCase() !== entry.name.toLowerCase())]);
+      setMyPrediction(newEntry);
       setStep("result");
-    } catch { alert("Error al guardar. Intenta de nuevo."); }
+    } catch (e) {
+      setDbError("Error al guardar. Verifica las reglas de Firestore (modo producción necesita autenticación — cambia a modo test).");
+      console.error(e);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleStart() {
@@ -351,7 +291,7 @@ export default function App() {
         {/* HEADER */}
         <div className="header">
           <div style={{ fontSize: 10, letterSpacing: 5, color: "#f0cc1a", textTransform: "uppercase", marginBottom: 2 }}>
-            ⚽ Predicción Fan Celeste Panasmac ⚽
+            ⚽ Predicción Oficial ⚽
           </div>
           <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: 2 }}>MACARÁ</div>
           <div style={{ fontSize: 13, color: "#8dc4a2", letterSpacing: 4, marginTop: 1 }}>
@@ -369,33 +309,40 @@ export default function App() {
 
         <div className="page-content">
 
+          {/* Error global */}
+          {dbError && (
+            <div style={{
+              background: "rgba(255,80,80,0.12)", border: "1px solid #ff5050",
+              borderRadius: 10, padding: "12px 16px", marginBottom: 20,
+              fontSize: 13, color: "#ff9090", lineHeight: 1.5,
+            }}>
+              ⚠️ {dbError}
+            </div>
+          )}
+
           {/* HOME */}
           {step === "home" && (
             <div style={{ textAlign: "center", paddingTop: 16 }}>
               <div style={{
                 width: 96, height: 96, borderRadius: "50%",
                 background: "linear-gradient(135deg,#185e2e,#0c3a1c)",
-                border: "4px solid #f0cc1a",
-                margin: "0 auto 20px",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 46,
+                border: "4px solid #f0cc1a", margin: "0 auto 20px",
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 46,
               }}>⚽</div>
-
               <h1 style={{ fontSize: 26, fontWeight: 900, color: "#f0cc1a", marginBottom: 10 }}>
                 ¿Qué grupo le tocará a Macará?
               </h1>
               <p style={{ color: "#8dc4a2", fontSize: 15, maxWidth: 520, margin: "0 auto 12px" }}>
-                Macará quedó en el <strong style={{color:"#fff"}}>Bombo 3</strong>. Elige un rival del Bombo 1, uno del Bombo 2 y uno del Bombo 4 para completar el grupo predicho.
+                Macará quedó en el <strong style={{color:"#fff"}}>Bombo 3</strong>. Elige un rival del Bombo 1, uno del Bombo 2 y uno del Bombo 4.
               </p>
               <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 30, flexWrap: "wrap" }}>
-                {[["🟩 B1","Cabezas de serie"],["🟦 B2","Segundo pelotón"],["🟥 B4","Fase previa / Libertadores"]].map(([b,d]) => (
+                {[["🟩 B1","Cabezas de serie"],["🟦 B2","Segundo pelotón"],["🟥 B4","Fase previa"]].map(([b,d]) => (
                   <div key={b} style={{
                     background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
                     borderRadius: 8, padding: "6px 14px", fontSize: 12, color: "#8dc4a2",
                   }}><strong style={{color:"#fff"}}>{b}</strong> {d}</div>
                 ))}
               </div>
-
               <div className="home-card">
                 <label style={{ display: "block", textAlign: "left", marginBottom: 8, color: "#8dc4a2", fontSize: 14 }}>
                   Tu nombre:
@@ -423,12 +370,8 @@ export default function App() {
               }}>
                 <span style={{ fontSize: 24 }}>👋</span>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>
-                    Hola, <span style={{ color: "#f0cc1a" }}>{userName}</span>
-                  </div>
-                  <div style={{ fontSize: 12, color: "#5a8070" }}>
-                    Elige un rival de cada bombo para completar el grupo de Macará
-                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>Hola, <span style={{ color: "#f0cc1a" }}>{userName}</span></div>
+                  <div style={{ fontSize: 12, color: "#5a8070" }}>Elige un rival de cada bombo para completar el grupo de Macará</div>
                 </div>
               </div>
 
@@ -445,17 +388,14 @@ export default function App() {
               <BomboSection number="4" accent="#7a1a1a" teams={BOMBO4} selKey="b4" label="Fase previa / repechaje Libertadores" />
 
               <div style={{ textAlign: "center", marginTop: 24 }}>
-                <button
-                  className="submit-btn"
-                  onClick={savePrediction}
-                  disabled={!canSubmit}
+                <button className="submit-btn" onClick={savePrediction}
+                  disabled={!canSubmit || saving}
                   style={{
-                    background: canSubmit ? "linear-gradient(135deg,#b8960a,#f0cc1a)" : "#2a2a2a",
-                    cursor: canSubmit ? "pointer" : "not-allowed",
-                    color: canSubmit ? "#111" : "#555",
-                  }}
-                >
-                  {canSubmit ? "✅ GUARDAR MI PREDICCIÓN" : `Selecciona ${!selected.b1 ? "Bombo 1" : !selected.b2 ? "Bombo 2" : "Bombo 4"}`}
+                    background: canSubmit && !saving ? "linear-gradient(135deg,#b8960a,#f0cc1a)" : "#2a2a2a",
+                    cursor: canSubmit && !saving ? "pointer" : "not-allowed",
+                    color: canSubmit && !saving ? "#111" : "#555",
+                  }}>
+                  {saving ? "Guardando..." : canSubmit ? "✅ GUARDAR MI PREDICCIÓN" : `Selecciona ${!selected.b1 ? "Bombo 1" : !selected.b2 ? "Bombo 2" : "Bombo 4"}`}
                 </button>
               </div>
             </div>
@@ -469,7 +409,6 @@ export default function App() {
               <p style={{ color: "#8dc4a2", marginBottom: 28 }}>
                 Registrada a nombre de <strong style={{ color: "#fff" }}>{myPrediction.name}</strong>
               </p>
-
               <div className="result-card">
                 <div style={{ textAlign: "center", fontWeight: 700, marginBottom: 18, color: "#f0cc1a", letterSpacing: 2, fontSize: 13 }}>
                   EL GRUPO DE MACARÁ
@@ -490,7 +429,6 @@ export default function App() {
                   </div>
                 ))}
               </div>
-
               <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
                 <button className="action-btn" style={{ background: "#185e2e" }}
                   onClick={() => { setStep("home"); setSelected({ b1:null, b2:null, b4:null }); setUserName(""); }}>
@@ -512,7 +450,9 @@ export default function App() {
                 {predictions.length} persona{predictions.length !== 1 ? "s" : ""} han hecho su predicción
               </p>
 
-              {predictions.length === 0 ? (
+              {loading ? (
+                <div className="spinner" />
+              ) : predictions.length === 0 ? (
                 <div style={{
                   textAlign: "center", padding: 48, color: "#555",
                   border: "1px dashed #333", borderRadius: 12,
@@ -520,7 +460,7 @@ export default function App() {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                   {predictions.map((p, i) => (
-                    <div key={p.name + i} className="rank-row">
+                    <div key={p.id || i} className="rank-row">
                       <div style={{
                         width: 34, height: 34, borderRadius: "50%",
                         background: "linear-gradient(135deg,#143520,#0e5228)",
@@ -530,7 +470,7 @@ export default function App() {
                       }}>{i + 1}</div>
                       <div style={{ flexShrink: 0, minWidth: 120 }}>
                         <div style={{ fontWeight: 700, fontSize: 15 }}>{p.name}</div>
-                        <div style={{ fontSize: 11, color: "#555" }}>{p.date}</div>
+                        <div style={{ fontSize: 11, color: "#555" }}>{p.dateLabel}</div>
                       </div>
                       <div className="rank-teams">
                         {[
@@ -538,9 +478,7 @@ export default function App() {
                           { team: p.b2, color: "#1a3f7a", label: "B2" },
                           { team: p.b4, color: "#7a1a1a", label: "B4" },
                         ].map(({ team, color, label }) => team && (
-                          <div key={label} className="rank-badge" style={{
-                            background: color + "33", border: `1px solid ${color}`,
-                          }}>
+                          <div key={label} className="rank-badge" style={{ background: color + "33", border: `1px solid ${color}` }}>
                             <span style={{ opacity: 0.55, marginRight: 4 }}>{label}</span>
                             {team.flag} {team.name}
                           </div>
